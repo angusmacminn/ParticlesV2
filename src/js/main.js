@@ -132,7 +132,7 @@ if (!checkWebGLCompatibility()) {
     width: 2000,
     height: 2000,
     depth: 8000, // Longer tunnel
-    speed: 4,
+    speed: 7,
     step: 1500,
     size: undefined, // Use default based on device
     color: 0xEA368E, // Fuschia color for tissue

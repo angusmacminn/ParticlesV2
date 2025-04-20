@@ -1,0 +1,222 @@
+<style>
+  #canvas_container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  #canvas_1 {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  
+  /* Add vignette overlay */
+  #vignette_overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at center,
+      transparent 20%,
+      rgba(0, 0, 0, 0.7) 60%,
+      rgba(0, 0, 0, 1) 85%
+    );
+    opacity: 0; /* Start hidden */
+    transition: opacity 0.5s ease-in; /* Smooth fade in */
+  }
+  
+  /* Add a dedicated full black overlay */
+  #black_overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+    background-color: #000000;
+    opacity: 0; /* Start hidden */
+    transition: opacity 0.8s ease-in-out; /* Smooth fade in/out */
+  }
+</style>
+
+<div id="canvas_container">
+  <canvas id="canvas_1"></canvas>
+  <div id="vignette_overlay"></div>
+  <div id="black_overlay"></div>
+</div>
+
+<!-- Fallback if THREE.js isn't in the head section -->
+<script>
+  if (typeof THREE === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+  }
+</script>
+
+<!-- Direct embedding of the particle system -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+  // First, ensure our black screen animation works independently
+  (function() {
+    // Animation state tracking
+    let isTransitioning = false;
+    let animationProgress = 0;
+    let lastResetTime = Date.now();
+    
+    // Clear any existing interval
+    if (window._blackScreenInterval) {
+      clearInterval(window._blackScreenInterval);
+    }
+    
+    // Create a function to handle the black transition
+    const handleBlackTransition = function() {
+      // Duration to fully show black screen in ms (approximately 20 seconds for complete transition)
+      const cycleDuration = 25000;  // Increased to 25 seconds total cycle (20s animation + 5s black screen)
+      const blackScreenDuration = 5000; // Time to stay completely black
+      const currentTime = Date.now();
+      
+      // Calculate where we are in the animation cycle
+      const timeSinceReset = currentTime - lastResetTime;
+      const cycleProgress = timeSinceReset / cycleDuration;
+      
+      // If near the end of the cycle (after about 20 seconds), show black screen
+      if (cycleProgress >= 0.8 && !isTransitioning) {
+        console.log("Showing black screen from timed interval");
+        isTransitioning = true;
+        
+        // Show black overlay
+        const blackOverlay = document.getElementById('black_overlay');
+        if (blackOverlay) {
+          blackOverlay.style.opacity = '1';
+        }
+        
+        // Wait for the black screen duration, then reset
+        setTimeout(() => {
+          console.log("Resetting animation from timed interval");
+          
+          // If we have access to the particle system, reset it
+          if (window.particleSystem) {
+            window.particleSystem.linearProgress = 0;
+            window.particleSystem.scrollProgress = 0;
+            
+            if (window.particleSystem.previousCameraPosition && window.particleSystem.tunnelPath) {
+              const startPoint = window.particleSystem.tunnelPath.getPointAt(0);
+              window.particleSystem.previousCameraPosition.set(startPoint.x, startPoint.y, startPoint.z);
+            }
+            
+            if (typeof window.particleSystem.resetParticles === 'function') {
+              window.particleSystem.resetParticles();
+            }
+          }
+          
+          // Record the reset time
+          lastResetTime = Date.now();
+          
+          // Wait briefly to ensure reset is complete, then fade from black
+          setTimeout(() => {
+            const blackOverlay = document.getElementById('black_overlay');
+            if (blackOverlay) {
+              blackOverlay.style.opacity = '0';
+            }
+            isTransitioning = false;
+          }, 500);
+        }, blackScreenDuration);
+      }
+    };
+    
+    // Start checking for the animation end point
+    window._blackScreenInterval = setInterval(handleBlackTransition, 1000);
+    
+    // Expose our function to reset the animation
+    window.resetTunnelAnimation = function() {
+      if (isTransitioning) return; // Don't reset during transition
+      
+      console.log("Manual animation reset requested");
+      lastResetTime = Date.now();
+      
+      // Force reset of the particle system if available
+      if (window.particleSystem) {
+        window.particleSystem.linearProgress = 0;
+        window.particleSystem.scrollProgress = 0;
+        
+        if (window.particleSystem.previousCameraPosition && window.particleSystem.tunnelPath) {
+          const startPoint = window.particleSystem.tunnelPath.getPointAt(0);
+          window.particleSystem.previousCameraPosition.set(startPoint.x, startPoint.y, startPoint.z);
+        }
+        
+        if (typeof window.particleSystem.resetParticles === 'function') {
+          window.particleSystem.resetParticles();
+        }
+      }
+    };
+  })();
+  
+  // Now load the particle script and configure it
+  $.ajax({
+    // Add timestamp to prevent caching
+    url: 'https://gist.githubusercontent.com/angusmacminn/b06c96b4e82e45c28b0de017741d1cfd/raw/webflow-particles.js?' + new Date().getTime(),
+    dataType: 'text',
+    cache: false, // Prevent caching to ensure latest version
+    success: function(data) {
+      console.log('Particle script loaded, length:', data.length);
+      
+      // Force script to not contain any animation resets
+      const modifiedData = data.replace(/if\s*\(\s*window\.particleSystem\s*&&\s*window\.particleSystem\.scrollProgress\s*>=\s*0\.9[0-9]/g, 
+                                        "if (false && window.particleSystem && window.particleSystem.scrollProgress >= 0.99");
+      
+      const script = document.createElement('script');
+      script.textContent = modifiedData;
+      document.body.appendChild(script);
+      
+      // Additional configuration after script loads
+      setTimeout(() => {
+        if (window.particleSystem) {
+          console.log('Configuring particle system position');
+          // Force tunnel to right side if needed through the exposed API
+          window.particleSystem.setRightSidePosition(true);
+          
+          // Show the vignette once particles have initialized
+          document.getElementById('vignette_overlay').style.opacity = '1';
+          
+          // Make more aggressive changes to ensure complete tunnel traversal
+          if (window.particleSystem.settings) {
+            // Modify tunnel properties for better end-of-tunnel experience
+            window.particleSystem.settings.depth = 6000; // Shorter tunnel (was 8000)
+            window.particleSystem.settings.fogDistance = 300; // Further reduce fog distance for clearer end
+            window.particleSystem.settings.fogDensity = 0.003; // Increase fog density for better dark effect
+            window.particleSystem.settings.cameraStopPosition = 1.0; // Go all the way to the end
+            window.particleSystem.settings.cameraAnimationDuration = 20.0; // Longer animation (was 20)
+            
+            // Slow down particle movement and effects
+            window.particleSystem.settings.speed = 1.0; // Reduce from default 1.5 for slower particle movement
+            window.particleSystem.settings.flowSpeed = 0.8; // Reduce from default 1.2 for gentler flow 
+            window.particleSystem.settings.spiralFactor = 0.08; // Reduce spiral motion for a calmer effect
+            window.particleSystem.settings.cameraShakeAmount = 0.15; // Reduce camera shake for smoother movement
+            window.particleSystem.settings.cameraShakeSpeed = 1.0; // Slower camera shake
+            
+            // Reset and restart the animation
+            window.particleSystem.linearProgress = 0;
+            window.particleSystem.scrollProgress = 0;
+            
+            // Rebuild tunnel path and particles with new settings
+            window.particleSystem.tunnelPath = window.particleSystem.createTunnelPath();
+            window.particleSystem.pathPoints = window.particleSystem.tunnelPath.getPoints(1000);
+            window.particleSystem.resetParticles();
+          }
+        }
+      }, 100);
+    },
+    error: function(err) {
+      console.error('Failed to load particles script:', err);
+    }
+  });
+</script>

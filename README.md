@@ -1,71 +1,77 @@
-# Three.js Particle System
+# Stomach Tunnel Animation
 
-A simple 3D particle system built with Three.js.
+A standalone JavaScript animation that renders a realistic stomach tunnel with ulcers using Three.js.
 
-## Features
+## Local Testing
 
-- 3D particle system with thousands of particles
-- Interactive camera controls with OrbitControls
-- Colorful, animated particles
-- Responsive design that adjusts to window size
+To test the animation locally:
 
-## Prerequisites
+1. Clone this repository or download the files
+2. Open `index.html` in a web browser
+3. The animation will automatically start and loop every 12 seconds
 
-- Node.js (v14+)
-- npm or yarn
+## Integration with Webflow
 
-## Installation
+To add this animation to a Webflow hero section:
 
-1. Clone this repository
-2. Install dependencies:
+1. Upload the `stomach-tunnel-animation.js` file to Webflow (Assets panel)
+2. Add an HTML embed element to your hero section with the following code:
 
-```bash
-npm install
+```html
+<div id="animation-container" style="width: 100%; height: 100%;"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="[YOUR-UPLOADED-JS-FILE-URL]"></script>
+<script>
+  // Initialize with custom options (all are optional)
+  initStomachTunnelAnimation({
+    containerId: 'animation-container',
+    animationDuration: 30, // in seconds
+    particleCount: 25000,  // reduce on mobile for better performance
+    tunnelRadius: 400,
+    ulcerCount: 14,
+    color: 0xEA368E,      // Fuschia color for stomach tissue
+    ulcerColor: 0x00FF00  // Green color for ulcers
+  });
+</script>
 ```
 
-## Running the Project
+## Configuration Options
 
-To start the development server:
+The animation can be customized with the following options:
 
-```bash
-npm run dev
-```
+| Option | Default | Description |
+|--------|---------|-------------|
+| containerId | 'animation-container' | ID of the container element |
+| animationDuration | 12 | Duration of full animation in seconds |
+| particleCount | 25000 (5000 on mobile) | Number of particles |
+| width | 2000 | Width of the particle system |
+| height | 2000 | Height of the particle system |
+| depth | 8000 | Depth/length of the tunnel |
+| tunnelRadius | 400 | Radius of the tunnel |
+| color | 0xEA368E | Color of the stomach tissue (fuschia) |
+| ulcerCount | 14 | Number of ulcers |
+| ulcerSize | 240 | Size of ulcers |
+| ulcerColor | 0x00FF00 | Color of ulcers (green) |
+| tunnelForceStrength | 0.15 | How strongly particles stick to tunnel walls |
+| fogDistance | 2000 | Distance at which fog appears |
+| fogDensity | 0.0008 | Density of fog for depth effect |
 
-This will start the Vite dev server and open the project in your browser.
+## Performance Optimization
 
-## Building for Production
+This animation includes several optimizations for better performance:
 
-To build the project for production:
+1. Automatic particle count reduction on mobile devices
+2. Proper texture handling for better visual quality
+3. Efficient path computation to reduce CPU usage
+4. Automatic WebGL capability detection
+5. Proper WebGL rendering configuration
 
-```bash
-npm run build
-```
+## Browser Support
 
-The built files will be in the `dist` directory.
+This animation requires WebGL support. It works in all modern browsers, including:
+- Chrome
+- Firefox
+- Safari
+- Edge
 
-To preview the production build locally:
-
-```bash
-npm run preview
-```
-
-## Customization
-
-You can customize the particle system by modifying the parameters passed to the `ParticleSystem` constructor in `src/js/main.js`:
-
-```javascript
-const particleSystem = new ParticleSystem({
-  particleCount: 10000, // Number of particles
-  size: 0.4,            // Size of each particle
-  spread: 60,           // How far particles spread from center
-  opacity: 0.7          // Opacity of particles
-});
-```
-
-## Further Development Ideas
-
-- Add particle physics (gravity, attraction, repulsion)
-- Create particle emitters at specific locations
-- Add interactive controls to modify particle properties
-- Implement different particle shapes and textures
-- Add color themes or gradients 
+Mobile support is included with automatic detection and reduced particle count for better performance. 

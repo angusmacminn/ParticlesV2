@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tunnel Animation</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrolling now that we're not using scroll-based animation */
+            background-color: #000; /* Match particle background */
+        }
+        #canvas_container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0; /* Changed from -1 to 0 */
+            pointer-events: none; /* Allow interaction with content behind */
+        }
+        #canvas_1 {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+         /* Optional: Style for dat.GUI container */
+        #gui_container {
+             position: fixed;
+             top: 10px;
+             right: 10px;
+             z-index: 1000; /* Ensure it's above canvas */
+        }
+         /* Journey Marker Styles */
+        #journey_markers_container {
+             position: fixed;
+             right: 20px;
+             top: 50%;
+             transform: translateY(-50%);
+             z-index: 150;
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             gap: 15px;
+        }
+        .journey-marker {
+             width: 10px;
+             height: 10px;
+             background-color: rgba(255, 255, 255, 0.3);
+             border-radius: 50%;
+             transition: background-color 0.3s ease, transform 0.3s ease;
+             cursor: default;
+        }
+        .journey-marker.active {
+             background-color: rgba(255, 255, 255, 1);
+             transform: scale(1.4);
+        }
+
+        /* Debug and control buttons */
+        .control-button {
+            position: fixed;
+            z-index: 1000;
+            background: #EA368E;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #debug_button {
+            bottom: 20px;
+            left: 20px;
+        }
+        #restart_button {
+            bottom: 20px;
+            left: 150px;
+        }
+        #timer {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            font-family: sans-serif;
+            font-size: 18px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        console.log('Page is loading...');
+        window.addEventListener('error', function(e) {
+            console.error('Global error caught:', e.message, e.filename, 'Line:', e.lineno);
+        });
+    </script>
+
+    <!-- Canvas Container -->
+    <div id="canvas_container">
+        <canvas id="canvas_1"></canvas>
+    </div>
+
+    <!-- GUI Container -->
+    <div id="gui_container"></div>
+
+    <!-- Journey Markers Container -->
+    <div id="journey_markers_container"></div>
+
+    <!-- Control Buttons -->
+    <button id="debug_button" class="control-button">Debug Canvas</button>
+    <button id="restart_button" class="control-button">Restart Animation</button>
+    
+    <!-- Timer Display -->
+    <div id="timer">Time: 0.0s</div>
+
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r16/Stats.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+
+    <!-- Debug script -->
+    <script>
+        document.getElementById('debug_button').addEventListener('click', function() {
+            console.log('Debugging canvas...');
+            
+            // Check canvas existence and dimensions
+            const canvas = document.getElementById('canvas_1');
+            if (canvas) {
+                console.log('Canvas found!');
+                console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
+                console.log('Canvas style dimensions:', canvas.style.width, 'x', canvas.style.height);
+                console.log('Canvas has WebGL context:', !!canvas.getContext('webgl'));
+                
+                // Check if anything is being rendered
+                const pixels = new Uint8Array(4);
+                const gl = canvas.getContext('webgl');
+                if (gl) {
+                    gl.readPixels(canvas.width/2, canvas.height/2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                    console.log('Center pixel color:', pixels);
+                    
+                    // Force a different color to test rendering
+                    gl.clearColor(1.0, 0.0, 1.0, 1.0); // Bright pink
+                    gl.clear(gl.COLOR_BUFFER_BIT);
+                    console.log('Forced clear to pink color');
+                }
+            } else {
+                console.error('Canvas not found!');
+            }
+            
+            // Check if THREE is available
+            if (window.THREE) {
+                console.log('THREE.js is available');
+            }
+            
+            // Try to locate any rendered particles
+            if (window.particleSystem) {
+                console.log('particleSystem found in global scope');
+                console.log('Particle count:', window.particleSystem.settings.particleCount);
+                console.log('Current animation progress:', window.particleSystem.scrollProgress);
+            }
+        });
+        
+        // Add restart functionality
+        document.getElementById('restart_button').addEventListener('click', function() {
+            if (window.particleSystem) {
+                console.log('Restarting animation');
+                window.particleSystem.scrollProgress = 0;
+            } else {
+                console.error('particleSystem not found in global scope');
+            }
+        });
+        
+        // Update timer
+        setInterval(function() {
+            if (window.particleSystem) {
+                const maxProgress = 0.92; // Match the value from the JS file
+                const totalTime = 15; // seconds
+                const progress = window.particleSystem.scrollProgress || 0;
+                const linearProgress = window.particleSystem.linearProgress || 0;
+                
+                // Calculate elapsed and remaining time
+                const elapsed = (progress / maxProgress) * totalTime;
+                const remaining = Math.max(0, totalTime - elapsed);
+                
+                // Update the timer display
+                if (linearProgress >= maxProgress) {
+                    document.getElementById('timer').textContent = `Journey complete (${elapsed.toFixed(1)}s)`;
+                    document.getElementById('timer').style.color = '#EA368E'; // Highlight in pink
+                } else {
+                    document.getElementById('timer').textContent = `Time: ${elapsed.toFixed(1)}s / ${totalTime}s`;
+                    document.getElementById('timer').style.color = 'white';
+                }
+            }
+        }, 100);
+    </script>
+
+    <!-- Particle System Script -->
+    <script src="dist/webflow-particles.js"></script>
+
+</body>
+</html>

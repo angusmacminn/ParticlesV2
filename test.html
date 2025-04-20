@@ -264,8 +264,8 @@ class CurlNoiseParticleSystem {
             // Default settings
             this.settings = {
               particleCount: options.particleCount || (this.isMobile() ? 2000 : 15000),
-              width: options.width || 2000,
-              height: options.height || 2000,
+              width: options.width || 1000,
+              height: options.height || 1000,
               depth: options.depth || 5000, // Make tunnel longer
               speed: options.speed || 4,
               step: options.step || 1500,
@@ -283,8 +283,9 @@ class CurlNoiseParticleSystem {
               ambientLightColor: options.ambientLightColor || 0xEA368E, // Fuschia ambient light
               pointLightColor: options.pointLightColor || 0xffffff, // White endoscope light
               pointLightIntensity: options.pointLightIntensity || 1.5, // Endoscope light intensity
+              ambientLightIntensity: options.ambientLightIntensity || 0.5, // << NEW
               // Visibility settings
-              fogDistance: options.fogDistance || 5500, // Distance at which particles start to fade in
+              fogDistance: options.fogDistance || 1000, // Distance at which particles start to fade in
               fogDensity: options.fogDensity || 0.0015, // How quickly particles fade in with distance
               // Ulcer settings
               ulcerColor: options.ulcerColor || 0x00FF00, // Bright green color for ulcers
@@ -292,9 +293,14 @@ class CurlNoiseParticleSystem {
               ulcerSizeMultiplier: options.ulcerSizeMultiplier || 2.5, // How much larger ulcer particles should be
               ulcerRadius: options.ulcerRadius || 200, 
               mouseInteractionDistance: options.mouseInteractionDistance || 900,
+              // Particle Reset Logic
+              resetLookahead: options.resetLookahead || 0.1, // << NEW (was hardcoded)
+              resetBehindBias: options.resetBehindBias || 0.0, // << NEW (0 = none behind)
+              resetRadiusBias: options.resetRadiusBias || 1.5, // << NEW (>1 pushes outward)
+              resetRadiusRange: options.resetRadiusRange || [0.8, 1.0], // << NEW ([min, max] % of radius)
               // --- Camera Settings ---
               cameraSpeed: options.cameraSpeed || 0.015, 
-              lookAheadDistance: options.lookAheadDistance || 20 // Keep this one!
+              lookAheadDistance: options.lookAheadDistance || 70 
             };
 
             // Setup scene properties
@@ -568,10 +574,10 @@ class CurlNoiseParticleSystem {
     this.scene.add(this.points);
 
     // Add Lights (ensure endoscopeLight is added back)
-    this.ambientLight = new THREE.AmbientLight(this.settings.ambientLightColor, 0.5);
+    this.ambientLight = new THREE.AmbientLight(this.settings.ambientLightColor, this.settings.ambientLightIntensity);
     this.scene.add(this.ambientLight);
     this.endoscopeLight = new THREE.PointLight(this.settings.pointLightColor, this.settings.pointLightIntensity, 1000);
-    this.camera.add(this.endoscopeLight); // Add it back to camera
+    this.camera.add(this.endoscopeLight);
     this.endoscopeLight.position.set(0, 0, -2);
   }
   
@@ -812,47 +818,48 @@ class CurlNoiseParticleSystem {
                 this.particles[i+2] > tunnelLength/2 + tunnelRadius ||
                 this.times[particleIndex] > this.lifetimes[particleIndex]) {
                 
-              // *** MODIFIED RESET LOGIC ***
-              // Reset particle slightly ahead of the camera's current progress
-              const resetLookahead = 0.1; // How far ahead to reset (0.0 to 1.0)
-              let newPathPos = this.cameraProgress + Math.random() * resetLookahead;
-              
-              // Wrap around if progress goes beyond 1.0
-              if (newPathPos > 1.0) {
-                newPathPos -= 1.0;
+              // *** MODIFIED RESET LOGIC USING NEW SETTINGS ***
+              let pathOffset = 0;
+              // Apply bias for resetting behind camera
+              if (Math.random() < this.settings.resetBehindBias) {
+                  // Reset slightly behind (negative offset)
+                  pathOffset = -Math.random() * this.settings.resetLookahead * 0.5; // smaller range behind
+              } else {
+                  // Reset ahead
+                  pathOffset = Math.random() * this.settings.resetLookahead;
               }
-              // Ensure it doesn't go below 0 if cameraProgress is near 0
-              newPathPos = Math.max(0, newPathPos); 
+
+              let newPathPos = this.cameraProgress + pathOffset;
+              
+              // Wrap around path progress
+              if (newPathPos > 1.0) newPathPos -= 1.0;
+              if (newPathPos < 0.0) newPathPos += 1.0; // Handle wrapping below 0
               
               const newPathPoint = this.tunnelPath.getPointAt(newPathPos);
-              
-              // Get direction at this point to orient the circle
               const tangent = this.tunnelPath.getTangentAt(newPathPos).normalize();
               
-              // Create a plane perpendicular to the tangent
-              const up = Math.abs(tangent.y) > 0.9 ? 
-                new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+              const up = Math.abs(tangent.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
               const right = new THREE.Vector3().crossVectors(tangent, up).normalize();
               const upDir = new THREE.Vector3().crossVectors(right, tangent).normalize();
               
-              // Random angle around the circle
               const newTheta = Math.random() * Math.PI * 2;
               
-              // Random radius with variation (closer to wall for density)
-              const radiusVariation = Math.pow(Math.random(), 0.7); // Bias towards edge slightly more
-              const newRadius = tunnelRadius * (0.8 + radiusVariation * 0.2); // e.g., 80% to 100%
+              // Use resetRadiusBias for distribution
+              const randomFactor = Math.pow(Math.random(), this.settings.resetRadiusBias); 
+              // Use resetRadiusRange for min/max radius percentage
+              const minRadiusFactor = this.settings.resetRadiusRange[0];
+              const maxRadiusFactor = this.settings.resetRadiusRange[1];
+              const radiusFactor = minRadiusFactor + randomFactor * (maxRadiusFactor - minRadiusFactor);
+              const newRadius = tunnelRadius * radiusFactor; 
               
-              // Position around the tunnel using the perpendicular plane
               const newX = newPathPoint.x + (right.x * newRadius * Math.cos(newTheta) + upDir.x * newRadius * Math.sin(newTheta));
               const newY = newPathPoint.y + (right.y * newRadius * Math.cos(newTheta) + upDir.y * newRadius * Math.sin(newTheta));
               const newZ = newPathPoint.z + (right.z * newRadius * Math.cos(newTheta) + upDir.z * newRadius * Math.sin(newTheta));
               
-              // Update simulation array on reset
+              // Update simulation array & geometry attribute
               this.particles[i] = newX;
               this.particles[i+1] = newY;
               this.particles[i+2] = newZ;
-
-              // *** UPDATE GEOMETRY ATTRIBUTE ON RESET ***
               positionAttribute.array[i] = newX;
               positionAttribute.array[i+1] = newY;
               positionAttribute.array[i+2] = newZ;
@@ -868,25 +875,45 @@ class CurlNoiseParticleSystem {
       document.addEventListener('DOMContentLoaded', function() {
             // Create the particle system
             const particleSystem = new CurlNoiseParticleSystem({
+                // --- Basic Visuals ---
                 particleCount: undefined, 
                 color: 0xEA368E, 
                 backgroundColor: 0x000000, 
+                size: 7, 
+                depth: 8000, // Tunnel Length
+                tunnelRadius: 100,
+
+                // --- Physics / Movement ---
+                tunnelForceStrength: 0.1, // How strongly particles stick to radius (lower = looser)
+                flowSpeed: 1.0,          // How fast particles move down the Z axis
+                spiralFactor: 0.2,       // How much particles spiral
+
+                // --- Lighting ---
                 ambientLightColor: 0xEA368E, 
+                ambientLightIntensity: 0.6, // (New!) Overall colored light level (0-1+)
                 pointLightColor: 0xffffff, 
-                pointLightIntensity: 1.0, 
+                pointLightIntensity: 1.2,  // Camera headlight brightness (0-1+)
+                 
+                // --- Fog / Edges ---
+                fogDistance: 1200,         // How close particles are before fading IN (lower = closer)
+                fogDensity: 0.0018,        // How fast particles fade OUT at distance (higher = faster fade)
+
+                // --- Particle Reset Behavior (Controls Density/Edges) ---
+                resetLookahead: 0.08,      // (New!) Depth range ahead of camera for reset (smaller = tighter front edge)
+                resetBehindBias: 0.05,     // (New!) Chance (0-1) to reset slightly behind camera (softens front edge)
+                resetRadiusBias: 1.8,      // (New!) Pushes reset position radially (>1 = towards wall, <1 = towards center)
+                resetRadiusRange: [0.85, 1.0], // (New!) [min, max] % of tunnelRadius for reset (e.g., [0.9, 1.0] = very close to wall)
+
+                // --- Ulcer / Interaction ---
                 ulcerColor: 0x00FF00, 
                 ulcerIntensity: 1.0, 
                 ulcerSizeMultiplier: 2.0, 
                 ulcerRadius: 250,      
                 mouseInteractionDistance: 900,
-                tunnelRadius: 400,
-                depth: 8000,
-                tunnelForceStrength: 0.1,
-                size: 7, 
-                
-                // --- Simplified Camera Controls ---
+
+                // --- Camera Controls ---
                 cameraSpeed: 0.015, 
-                lookAheadDistance: 70 // Keep this!
+                lookAheadDistance: 70 
             });
             
             // Initialize the visualization
