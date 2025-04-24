@@ -7,6 +7,7 @@
     height: 100%;
     z-index: 0;
     pointer-events: none;
+    min-height: 100vh; /* Ensure it has height for intersection detection */
   }
   #canvas_1 {
     display: block;
@@ -46,7 +47,25 @@
     opacity: 0; /* Start hidden */
     transition: opacity 0.8s ease-in-out; /* Smooth fade in/out */
   }
+  
+  /* For debugging - optional */
+  .io-indicator {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-family: monospace;
+    z-index: 1000;
+    pointer-events: none;
+    display: none; /* Hide by default */
+  }
 </style>
+
+<!-- Add this indicator element (optional, for debugging) -->
+<div class="io-indicator">Not Visible</div>
 
 <div id="canvas_container">
   <canvas id="canvas_1"></canvas>
@@ -65,12 +84,46 @@
 <!-- Direct embedding of the particle system -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
+  // Update the existing Intersection Observer code to update the indicator
+  const updateIntersectionIndicator = (isVisible) => {
+    const indicator = document.querySelector('.io-indicator');
+    if (indicator) {
+      indicator.textContent = isVisible ? 'Visible' : 'Not Visible';
+      indicator.style.backgroundColor = isVisible ? 'rgba(0,255,0,0.5)' : 'rgba(255,0,0,0.5)';
+    }
+  };
+  
   // First, ensure our black screen animation works independently
   (function() {
     // Animation state tracking
     let isTransitioning = false;
     let animationProgress = 0;
     let lastResetTime = Date.now();
+    let isVisible = false; // Track visibility state
+    
+    // Setup visibility tracking via IntersectionObserver
+    const setupVisibilityTracking = () => {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          isVisible = entry.isIntersecting;
+          updateIntersectionIndicator(isVisible);
+          
+          if (isVisible && !isTransitioning) {
+            // When becoming visible, reset animation timer
+            console.log("Element became visible, resetting animation timer");
+            lastResetTime = Date.now();
+          }
+        });
+      }, {
+        threshold: 0.1
+      });
+      
+      const container = document.getElementById('canvas_container');
+      if (container) observer.observe(container);
+    };
+    
+    // Call setup function
+    setupVisibilityTracking();
     
     // Clear any existing interval
     if (window._blackScreenInterval) {
@@ -79,8 +132,11 @@
     
     // Create a function to handle the black transition
     const handleBlackTransition = function() {
+      // Only run animation if element is visible
+      if (!isVisible) return;
+      
       // Duration to fully show black screen in ms (approximately 20 seconds for complete transition)
-      const cycleDuration = 25000;  // Increased to 25 seconds total cycle (20s animation + 5s black screen)
+      const cycleDuration = 30000;  // Increased to 25 seconds total cycle (20s animation + 5s black screen)
       const blackScreenDuration = 5000; // Time to stay completely black
       const currentTime = Date.now();
       
@@ -90,7 +146,7 @@
       
       // If near the end of the cycle (after about 20 seconds), show black screen
       if (cycleProgress >= 0.8 && !isTransitioning) {
-        console.log("Showing black screen from timed interval");
+        
         isTransitioning = true;
         
         // Show black overlay
@@ -101,7 +157,6 @@
         
         // Wait for the black screen duration, then reset
         setTimeout(() => {
-          console.log("Resetting animation from timed interval");
           
           // If we have access to the particle system, reset it
           if (window.particleSystem) {
@@ -140,7 +195,7 @@
     window.resetTunnelAnimation = function() {
       if (isTransitioning) return; // Don't reset during transition
       
-      console.log("Manual animation reset requested");
+      
       lastResetTime = Date.now();
       
       // Force reset of the particle system if available
@@ -167,7 +222,7 @@
     dataType: 'text',
     cache: false, // Prevent caching to ensure latest version
     success: function(data) {
-      console.log('Particle script loaded, length:', data.length);
+      
       
       // Force script to not contain any animation resets
       const modifiedData = data.replace(/if\s*\(\s*window\.particleSystem\s*&&\s*window\.particleSystem\.scrollProgress\s*>=\s*0\.9[0-9]/g, 
@@ -180,7 +235,7 @@
       // Additional configuration after script loads
       setTimeout(() => {
         if (window.particleSystem) {
-          console.log('Configuring particle system position');
+          
           // Force tunnel to right side if needed through the exposed API
           window.particleSystem.setRightSidePosition(true);
           
@@ -212,6 +267,24 @@
             window.particleSystem.pathPoints = window.particleSystem.tunnelPath.getPoints(1000);
             window.particleSystem.resetParticles();
           }
+          
+          // Add parallax settings
+          window.particleSystem.parallaxAmount = 0.15; // Stronger parallax effect
+          
+          // Make sure mouse movement works when directly over the canvas
+          const canvasContainer = document.getElementById('canvas_container');
+          if (canvasContainer) {
+            // Only capture mouse move events but allow clicks to pass through
+            canvasContainer.style.pointerEvents = 'none'; // Default to none
+            
+            // Add a separate event listener for mouse movement
+            document.addEventListener('mousemove', (event) => {
+              if (window.particleSystem) {
+                // Update the mouse position for parallax
+                window.particleSystem.targetMouseX = (event.clientX / window.innerWidth) * 2 - 1;
+              }
+            }, false);
+          }
         }
       }, 100);
     },
@@ -219,4 +292,18 @@
       console.error('Failed to load particles script:', err);
     }
   });
+
+  // Add error handling around your event listeners
+  try {
+    const elementToObserve = document.getElementById('canvas_container'); // Replace with the actual ID
+    if (elementToObserve) {
+      elementToObserve.addEventListener('event', function() {
+        // Your event handling code
+      });
+    } else {
+      console.warn('Element not found for event listener');
+    }
+  } catch (err) {
+    console.error('Error setting up event listener:', err);
+  }
 </script>

@@ -1,5 +1,4 @@
 // Add debugging at the start of the file
-console.log('Particle script loaded');
 
 // Add easing functions at the top of the file
 // These will make the camera movement smoother
@@ -264,6 +263,11 @@ class CurlNoiseParticleSystem {
     
     // Array to store ulcer positions and properties
     this.ulcers = [];
+
+    // Add this after the class properties in the CurlNoiseParticleSystem constructor (around line 150)
+    this.mouseX = 0;
+    this.targetMouseX = 0;
+    this.parallaxAmount = 0.05; // How much the camera moves based on mouse position
   }
 
   isMobile() {
@@ -370,6 +374,13 @@ class CurlNoiseParticleSystem {
     }
     */
     this.gui = null; // Disable GUI for Webflow
+
+    // Then in the init method, after the window resize listener (around line 320)
+    // Add mouse movement tracking for parallax effect
+    window.addEventListener('mousemove', (event) => {
+      // Get mouse position as -1 to 1 value from center of screen
+      this.targetMouseX = (event.clientX / window.innerWidth) * 2 - 1;
+    }, false);
   }
 
   initParticles() {
@@ -503,17 +514,15 @@ class CurlNoiseParticleSystem {
         'https://al-ro.github.io/images/embers/ember_texture.png',
         // Success callback
         (texture) => {
-            console.log('Texture loaded successfully');
             this.rebuildParticleSystems(texture);
         },
         // Progress callback
         (xhr) => {
-            console.log('Texture loading: ' + (xhr.loaded / xhr.total * 100) + '%');
+            
         },
         // Error callback
         (error) => {
-            console.error('Error loading texture:', error);
-            console.log('Using fallback texture');
+            
             const fallbackTexture = this.createFallbackTexture();
             this.rebuildParticleSystems(fallbackTexture);
         }
@@ -549,7 +558,6 @@ class CurlNoiseParticleSystem {
 
   // Create separate particle systems for different size groups rather than using custom shaders
   createMultipleSizedParticleSystems(texture) {
-    console.log('Creating particle systems with enhanced visibility, texture provided:', !!texture);
     
     // Group particles by size to create distinct particle systems
     // Define size categories
@@ -646,7 +654,7 @@ class CurlNoiseParticleSystem {
       const points = new THREE.Points(geometry, material);
       this.scene.add(points);
       
-      console.log(`Created particle system: ${groupName} with ${group.positions.length/3} particles`);
+      
       
       // Store the particle system with index mapping for updates
       this.particleSystems.push({
@@ -780,7 +788,7 @@ class CurlNoiseParticleSystem {
     // Add a restart button specifically for the camera animation
     const cameraControls = {
       restart: () => {
-        console.log('Restarting camera animation');
+        
         this.linearProgress = 0;
         this.scrollProgress = 0;
         if (this.previousCameraPosition) {
@@ -1193,6 +1201,7 @@ class CurlNoiseParticleSystem {
     const baseLookAheadAmount = this.settings.cameraLookAheadDistance;
     const smoothingFactor = this.settings.cameraSmoothingFactor;
     const rollAmount = this.settings.cameraRollAmount;
+    const tunnelRadius = this.settings.tunnelRadius;
     
     // Increment linear progress based on time
     this.linearProgress = this.linearProgress || 0;
@@ -1248,21 +1257,27 @@ class CurlNoiseParticleSystem {
     const oscillationX = Math.sin(oscillationTime * shakeSpeed * 1.1) * shakeAmount;
     const oscillationY = Math.cos(oscillationTime * shakeSpeed * 0.9) * shakeAmount;
 
+    // Create target position
+    const targetPosition = new THREE.Vector3(
+      pathPosition.x + oscillationX,
+      pathPosition.y + oscillationY,
+      pathPosition.z
+    );
+    
+    // Apply mouse-based parallax effect - ADD THIS HERE
+    // Smoothly approach the target mouse x value
+    this.mouseX = this.mouseX || 0;
+    this.targetMouseX = this.targetMouseX || 0;
+    this.mouseX += (this.targetMouseX - this.mouseX) * 0.05;
+    
+    // Apply parallax offset to x position based on mouseX
+    const parallaxOffset = this.mouseX * this.parallaxAmount * tunnelRadius;
+    targetPosition.x += parallaxOffset;
+
     // Smoothly interpolate camera position for extra stability
     if (!this.previousCameraPosition) {
-      this.previousCameraPosition = new THREE.Vector3(
-        pathPosition.x + oscillationX,
-        pathPosition.y + oscillationY,
-        pathPosition.z
-      );
+      this.previousCameraPosition = targetPosition.clone();
     } else {
-      // Create target position
-      const targetPosition = new THREE.Vector3(
-        pathPosition.x + oscillationX,
-        pathPosition.y + oscillationY,
-        pathPosition.z
-      );
-      
       // Interpolate between previous and target position (extra smoothing)
       const positionLerpFactor = Math.min(1.0, dT * smoothingFactor);
       this.previousCameraPosition.lerp(targetPosition, positionLerpFactor);
@@ -1464,14 +1479,14 @@ class CurlNoiseParticleSystem {
     // Ensure we have a valid texture
     if (!texture) {
       texture = this.createFallbackTexture();
-      console.log('Using fallback texture for particles');
+      
     }
 
     this.createMultipleSizedParticleSystems(texture);
   }
 
   setRightSidePosition(enabled) {
-    console.log("Setting right side position:", enabled);
+    
     if (enabled) {
       // Update camera and tunnel path with larger offset
       const tunnelLength = this.settings.depth;
@@ -1513,14 +1528,14 @@ class CurlNoiseParticleSystem {
 // ============================================================================
 
 (function() { // IIFE Start
-    console.log('Initializing particle system...');
+    
 
     // Dependency Checks
     if (typeof THREE === 'undefined') { 
         console.error("THREE.js not loaded!"); 
         return; 
     } else {
-        console.log('THREE.js loaded successfully');
+        
     }
     // Optional libs checked within their usage points
 
@@ -1529,7 +1544,7 @@ class CurlNoiseParticleSystem {
             const canvas = document.createElement('canvas');
             const hasWebGL = !!window.WebGLRenderingContext &&
                    (!!canvas.getContext('webgl') || !!canvas.getContext('experimental-webgl'));
-            console.log('WebGL support:', hasWebGL ? 'YES' : 'NO');
+            
             return hasWebGL;
         } catch(e) {
             console.error('WebGL check error:', e);
@@ -1612,9 +1627,48 @@ class CurlNoiseParticleSystem {
       });
     };
 
-    // --- Main Init Function ---
+    // Inside the IIFE, around line ~1530, before the init function
+    const setupIntersectionObserver = () => {
+      
+      const options = {
+        root: null, // Use viewport as root
+        rootMargin: '0px',
+        threshold: 0.1 // Trigger when at least 10% of target is visible
+      };
+      
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            
+            if (window.particleSystem) {
+              // Reset the animation when it comes into view
+              window.particleSystem.scrollProgress = 0;
+              window.particleSystem.linearProgress = 0;
+              
+              if (window.particleSystem.previousCameraPosition && window.particleSystem.tunnelPath) {
+                const startPoint = window.particleSystem.tunnelPath.getPointAt(0);
+                window.particleSystem.previousCameraPosition.set(startPoint.x, startPoint.y, startPoint.z);
+              }
+            }
+          } else {
+            
+            // Optionally pause animation when not visible
+          }
+        });
+      }, options);
+      
+      // Observe the canvas container
+      const canvasContainer = document.getElementById('canvas_container');
+      if (canvasContainer) {
+        observer.observe(canvasContainer);
+        
+      } else {
+        console.warn('Canvas container not found for Intersection Observer');
+      }
+    };
+
+    // Then keep the init function as is
     const init = () => {
-        console.log('Running init function');
         
         if (!checkWebGLCompatibility()) {
             document.body.innerHTML = `<div style="color: white; text-align: center; margin: 50px auto; font-family: sans-serif; padding: 20px; max-width: 600px;"><h1>WebGL Not Supported</h1><p>This animation requires WebGL. Please update your browser or try a different device.</p></div>`;
@@ -1625,37 +1679,34 @@ class CurlNoiseParticleSystem {
         setupContainers();
 
         // Create the particle system with default settings
-        console.log('Creating particle system');
         const particleSystem = new CurlNoiseParticleSystem();
 
         // MODIFIED: Expose particle system to global scope for debugging
         window.particleSystem = particleSystem;
 
         try {
-            console.log('Initializing with canvas_1');
+            
             particleSystem.init('canvas_1');
             
             // MODIFIED: Initialize scrollProgress to 0 (start of animation)
             particleSystem.scrollProgress = 0;
             
-            console.log('Starting animation');
+            
             particleSystem.start();
             
-            console.log("Starting automatic 15-second animation through tunnel");
-
-            console.log("Particle system initialized successfully.");
+            
+            
+            // Add this line to set up the Intersection Observer
+            setupIntersectionObserver();
         } catch (e) {
             console.error("Error during particle system initialization:", e);
         }
     };
 
-    console.log('Setting up init to run when document is ready');
     // --- Run Initialization ---
     if (document.readyState === 'loading') {
-        console.log('Document still loading, adding event listener');
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        console.log('Document already loaded, running init immediately');
         init();
     }
 
