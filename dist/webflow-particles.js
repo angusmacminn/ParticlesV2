@@ -510,23 +510,7 @@ class CurlNoiseParticleSystem {
     const loader = new THREE.TextureLoader();
     loader.crossOrigin = 'anonymous'; // Important for CORS
     
-    const texture = loader.load(
-        'https://al-ro.github.io/images/embers/ember_texture.png',
-        // Success callback
-        (texture) => {
-            this.rebuildParticleSystems(texture);
-        },
-        // Progress callback
-        (xhr) => {
-            
-        },
-        // Error callback
-        (error) => {
-            
-            const fallbackTexture = this.createFallbackTexture();
-            this.rebuildParticleSystems(fallbackTexture);
-        }
-    );
+
     
     // Also try with a fallback texture as backup
     this.rebuildParticleSystems(this.createFallbackTexture());
