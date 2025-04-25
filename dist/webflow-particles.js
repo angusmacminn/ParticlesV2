@@ -384,6 +384,18 @@ class CurlNoiseParticleSystem {
   }
 
   initParticles() {
+    // Add at the beginning:
+    // Special handling for mobile
+    if (this.isMobile()) {
+      console.log('Mobile device detected, using optimized settings');
+      this.settings.particleCount = Math.min(5000, this.settings.particleCount);
+      
+      // Force the use of the fallback texture on mobile
+      const fallbackTexture = this.createFallbackTexture();
+      this.rebuildParticleSystems(fallbackTexture);
+      return; // Skip the normal initialization that might cause issues
+    }
+    
     // Create geometry
     this.geometry = new THREE.BufferGeometry();
     
@@ -1575,41 +1587,7 @@ class CurlNoiseParticleSystem {
         hideElement('gui_container');
     };
 
-    const createJourneyMarkers = (containerId = 'journey_markers_container') => {
-      let markersContainer = document.getElementById(containerId);
-      if (!markersContainer) {
-          console.warn(`#${containerId} not found. Creating default journey markers container.`);
-          markersContainer = document.createElement('div');
-          markersContainer.id = containerId;
-           Object.assign(markersContainer.style, {
-               position: 'fixed', right: '20px', top: '50%',
-               transform: 'translateY(-50%)', zIndex: '150',
-               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px'
-           });
-          document.body.appendChild(markersContainer);
-      }
-      markersContainer.innerHTML = '';
-      const markerCount = 5;
-      for (let i = 0; i < markerCount; i++) {
-        const marker = document.createElement('div');
-        marker.className = 'journey-marker';
-        marker.dataset.position = i / (markerCount - 1);
-        // Basic styles are applied via CSS in test3.html now
-        markersContainer.appendChild(marker);
-      }
-      return markersContainer;
-    };
 
-    const updateJourneyMarkers = (progress) => {
-      const markers = document.querySelectorAll('#journey_markers_container .journey-marker'); // More specific selector
-      if (markers.length === 0) return;
-      const threshold = (markers.length > 1) ? (1 / ((markers.length - 1) * 2)) : 0.5;
-      markers.forEach(marker => {
-        const position = parseFloat(marker.dataset.position);
-        const isActive = Math.abs(progress - position) < threshold;
-        marker.classList.toggle('active', isActive);
-      });
-    };
 
     // Inside the IIFE, around line ~1530, before the init function
     const setupIntersectionObserver = () => {

@@ -312,23 +312,11 @@
           }
         }
       }, 100);
+
     },
     error: function(err) {
       console.error('Failed to load particles script:', err);
     }
   });
-
-  // Add error handling around your event listeners
-  try {
-    const elementToObserve = document.getElementById('canvas_container'); // Replace with the actual ID
-    if (elementToObserve) {
-      elementToObserve.addEventListener('event', function() {
-        // Your event handling code
-      });
-    } else {
-      console.warn('Element not found for event listener');
-    }
-  } catch (err) {
-    console.error('Error setting up event listener:', err);
-  }
+  
 </script>
